@@ -23,7 +23,7 @@ class QuokaPipeline(object):
 					  PLZ VARCHAR(10), \
 					  Ueberschrift VARCHAR(500), \
 					  Beschreibung VARCHAR(15000), \
-					  Kaufpreis INTEGER, \
+					  Kaufpreis FLOAT, \
 					  Monat INTEGER, \
 					  url VARCHAR(1000), \
 					  Telefon VARCHAR(20), \
@@ -32,8 +32,8 @@ class QuokaPipeline(object):
 
 	def process_item(self, item, spider):
 		item['Boersen_ID'] = 0 # !!!was muss hier wirklich hin???
-		item['OBID'] = eval(item['OBID'][0]) # extract() returns an array with one element, which is a number (the id) as string
-		item['erzeugt_am'] = eval(date.today().strftime("%Y%m%d")) # date of the crawl -> today; format: yyyymmdd as integer
+		item['OBID'] = int(item['OBID'][0]) # extract() returns an array with one element, which is a number (the id) as string
+		item['erzeugt_am'] = int(date.today().strftime("%Y%m%d")) # date of the crawl -> today; format: yyyymmdd as integer
 		item['Stadt'] = item['Stadt'][0].strip() # take the string with the city out of the array and remove preceeding or trailing whitespaces
 		item['PLZ'] = item['PLZ'][0] # the post code is in the string that is first (and only) in this array
 		item['Ueberschrift'] = item['Ueberschrift'][0].strip() # the title is the strong on first (and only) place in the array, remove unnecessary whitespaces
@@ -47,7 +47,8 @@ class QuokaPipeline(object):
 			Kaufpreis = item['Kaufpreis'][0] # gives the price as array containing a string that again contains dots as separators (a.bcd) and ",-" at the end
 			Kaufpreis = Kaufpreis.replace(".","")	# remove the dots
 			Kaufpreis = Kaufpreis.replace(",-","")	# remove the ",-"
-			item['Kaufpreis'] = eval(Kaufpreis)
+			Kaufpreis = Kaufpreis.replace(",", ".") # change the German separator to the international one
+			item['Kaufpreis'] = float(Kaufpreis)
 		except:
 			item['Kaufpreis'] = 0 # default value if no value is given
 		item['Telefon'] = item['Telefon'][0].replace("/","") # the telephone number is separated by "/" or "/ "; there might be several (take the first)
@@ -56,20 +57,20 @@ class QuokaPipeline(object):
 			d = d.strip()
 			if not d == '':
 				if "Heute" in d:
-					item['Erstellungsdatum'] = eval(date.today().strftime("%Y%m%d")) # today; format: yyyymmdd as integer
+					item['Erstellungsdatum'] = int(date.today().strftime("%Y%m%d")) # today; format: yyyymmdd as integer
 				elif "Gestern" in d:
 					yesterday = date.today() - timedelta(1)
-					item['Erstellungsdatum'] = eval(yesterday.strftime("%Y%m%d")) # yesterday; format: yyyymmdd as integer
+					item['Erstellungsdatum'] = int(yesterday.strftime("%Y%m%d")) # yesterday; format: yyyymmdd as integer
 				elif "vor" in d:
 					# it can happen that the date reads "vor 6 Monaten" or similar
 					if "Monat" in d:
-						day = date.today() - timedelta(eval(d.split(' ')[1])*30) # count every month with 30 days to get an as accurate date as possible
+						day = date.today() - timedelta(int(d.split(' ')[1])*30) # count every month with 30 days to get an as accurate date as possible
 					elif "Jahr" in d:
-						day = date.today() - timedelta(eval(d.split(' ')[1])*365) # count every year with 365 days to get an as accurate date as possible
-					item['Erstellungsdatum'] = eval(day.strftime("%Y%m%d")) # day; format: yyyymmdd as integer
+						day = date.today() - timedelta(int(d.split(' ')[1])*365) # count every year with 365 days to get an as accurate date as possible
+					item['Erstellungsdatum'] = int(day.strftime("%Y%m%d")) # day; format: yyyymmdd as integer
 				else:
 					d = d.split(".")	# now d is an array of strings: [day, month, year]
-					item['Erstellungsdatum'] =  eval(d[2]+d[1]+d[0])
+					item['Erstellungsdatum'] =  int(d[2]+d[1]+d[0])
 				break
 		# NOW: insert the data into the database if it is not already there
 		self.cursor.execute("SELECT * FROM quokascrapedata WHERE OBID=?", (item['OBID'],)) # get the entry (if it exists)

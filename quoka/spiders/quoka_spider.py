@@ -23,13 +23,23 @@ class QuokaSpider(scrapy.Spider):
 		"""
 		comm = response.meta['comm'] # the private/commercial indicator
 		# iterate over the visible cities
-		for line in response.xpath('//div[@class="cnt"]/ul/li/ul/li'):
-			cityid = line.xpath('//a/@onclick').extract()[0].split("'")[1] # syntax: onclick="qsn.changeCity('cityid',25,this); return false;"
-			request = FormRequest.from_response(response, formdata={'classtype': 'of', 'comm': str(comm), 'cityid': cityid},
-												callback=self.parse_overview_page1)
-			request.meta['comm'] = comm
-			request.meta['cityid'] = cityid
-			yield request
+		for line in response.xpath('//div[@class="cnt"]'):
+			for ci in line.xpath('//ul/li/ul/li/a/@onclick').extract():
+				cityid = ci.split("'")[1] # syntax: onclick="qsn.changeCity('cityid',25,this); return false;"
+				request = FormRequest.from_response(response, formdata={'classtype': 'of', 'comm': str(comm), 'cityid': cityid},
+													callback=self.parse_overview_page1)
+				request.meta['comm'] = comm
+				request.meta['cityid'] = cityid
+				yield request
+		# iterate over the non-visible cities
+		for line in response.xpath('//div[@id="NAV_CONTENT_CITIES_MOREELEMENTS"]'):
+			for ci in line.xpath('//ul/li/ul/li/a/@onclick').extract():
+				cityid = ci.split("'")[1] # syntax: onclick="qsn.changeCity('cityid',25,this); return false;"
+				request = FormRequest.from_response(response, formdata={'classtype': 'of', 'comm': str(comm), 'cityid': cityid},
+													callback=self.parse_overview_page1)
+				request.meta['comm'] = comm
+				request.meta['cityid'] = cityid
+				yield request
 
 	def parse_overview_page1(self, response):
 		"""parses the first overview page
@@ -38,12 +48,18 @@ class QuokaSpider(scrapy.Spider):
 		"""
 		comm = response.meta['comm'] # the private/commercial indicator
 		cityid = response.meta['cityid'] # the id of the city of which we look for the ads (as string)
-		# find the number of pages in total and open all other pages from 2,...,last page
-		numpages = eval(response.xpath('//li[@class="pageno"]/a[@class="nothing"]/strong[2]/text()').extract()[0])
-		for pageno in xrange(1,numpages+1):
-			# we have to re-post our form for the filter settings
-			request = FormRequest.from_response(response, formdata={'classtype': 'of', 'comm': str(comm), 'pageno': str(pageno), 'cityid': cityid},
-												callback=self.parse_overview_page2)
+		# find the number of pages in total and open all other pages from 1,...,last page
+		try:
+			numpages = int(response.xpath('//li[@class="pageno"]/a[@class="nothing"]/strong[2]/text()').extract()[0])
+			for pageno in xrange(1,numpages+1):
+				# we have to re-post our form for the filter settings
+				request = FormRequest.from_response(response, formdata={'classtype': 'of', 'comm': str(comm), 'pageno': str(pageno), 'cityid': cityid},
+													callback=self.parse_overview_page2)
+				request.meta['comm'] = comm
+				yield request
+		except:
+			# in this case there is no "Seite 1 von n", so we simply scrape this page
+			request = scrapy.Request(response.url, callback=self.parse_overview_page2)
 			request.meta['comm'] = comm
 			yield request
 
@@ -79,7 +95,11 @@ class QuokaSpider(scrapy.Spider):
 		I['OBID'] = response.xpath('//div[@class="date-and-clicks"]/strong[1]/text()').extract()
 		I['Anbieter_ID'] = ' ' #immoscout-Anzeigen muessen gesondert gelesen werden!!!
 		I['Stadt'] = response.xpath('//a/span[@class="locality"]/text()').extract()
+		if I['Stadt'] == []: # s.t. there is no city given
+			I['Stadt'] = ['']
 		I['PLZ'] = response.xpath('//strong/span[@class="address location"]/span[@class="countryzip"]/span[@class="postal-code"]/text()').extract()
+		if I['PLZ'] == []: # s.t. there is no post code given
+			I['PLZ'] = ['']
 		I['Ueberschrift'] = response.xpath('//h1[@itemprop="name"]/text()').extract()
 		I['Beschreibung'] = response.xpath('//div[@itemprop="description"]/text()').extract()
 		I['Kaufpreis'] = response.xpath('//div[@class="price has-type"]/strong/span/text()').extract()
