@@ -26,7 +26,7 @@ class QuokaPipeline(object):
 					  Kaufpreis INTEGER, \
 					  Monat INTEGER, \
 					  url VARCHAR(1000), \
-					  Telefon INTEGER, \
+					  Telefon VARCHAR(20), \
 					  Erstellungsdatum INTEGER, \
 					  Gewerblich INTEGER)')
 
@@ -50,7 +50,8 @@ class QuokaPipeline(object):
 			item['Kaufpreis'] = eval(Kaufpreis)
 		except:
 			item['Kaufpreis'] = 0 # default value if no value is given
-		item['Telefon'] = 0 # !!!muss noch geschrieben werden!!!
+		item['Telefon'] = item['Telefon'][0].replace("/","") # the telephone number is separated by "/" or "/ "; there might be several (take the first)
+		item['Telefon'] = item['Telefon'].replace(" ","")
 		for d in item['Erstellungsdatum']: # extract() gibt zuviele Zeilen zurueck, aber nur die Datumszeile enthaelt nicht-Whitespaces
 			d = d.strip()
 			if not d == '':

@@ -85,7 +85,23 @@ class QuokaSpider(scrapy.Spider):
 		I['Kaufpreis'] = response.xpath('//div[@class="price has-type"]/strong/span/text()').extract()
 		I['Monat'] = "September"
 		I['url'] = response.url
-		#I['Telefon'] = #wird erst auf Klick hin angezeigt!!!
 		I['Erstellungsdatum'] = response.xpath('//div[@class="date-and-clicks"]/text() | //span[@class="today"]/text()').extract()
 		I['Gewerblich'] = response.meta['comm']
+		# check, whether there is a phone number on the page
+		telcode = response.xpath('//ul[@class="contacts"]/li/span/a/@onclick').extract()
+		if not telcode == []:
+			# to read the telephone number, we have to follow the link http://www.quoka.de/ajax/detail/displayphonenumber.php?coded=...
+			# the value of coded is hidden in @onclick="jQuery( '#Handy1' ).load( '/ajax/detail/displayphonenumber.php?coded=MDE1MTQvIDAwNTY4NzM-&adno=173479169&..."
+			coded = telcode[0].split("coded=")[1].split('&')[0]
+			request = scrapy.Request("http://www.quoka.de/ajax/detail/displayphonenumber.php?coded="+coded, self.parse_tel)
+			request.meta['item'] = I
+			yield request
+		else:
+			I['Telefon'] = ['0']
+			yield I
+
+	def parse_tel(self, response):
+		"""gets the telephone number"""
+		I = response.meta['item']
+		I['Telefon'] = response.xpath('//span[@class]/text()').extract()
 		yield I
