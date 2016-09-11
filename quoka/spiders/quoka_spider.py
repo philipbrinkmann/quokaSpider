@@ -101,10 +101,7 @@ class QuokaSpider(scrapy.Spider):
 			I = QuokaItem()
 			# those fields we do not know set to default value
 			I['Boersen_ID'] = 1
-			I['OBID'] = 0
 			I['Anbieter_ID'] = 'Immobilienscout'
-			I['Stadt'] = ''
-			I['PLZ'] = ''
 			I['Ueberschrift'] = line['title']
 			I['Beschreibung'] = line['description']
 			I['Kaufpreis'] = float(line['priceTotal'])
@@ -112,9 +109,7 @@ class QuokaSpider(scrapy.Spider):
 				I['Kaufpreis'] = 0
 			I['Monat'] = "September"
 			I['url'] = line['urlClick']
-			I['Erstellungsdatum'] = 0
 			I['Gewerblich'] = response.meta['comm']
-			I['Telefon'] = '0'
 			yield I
 
 	def parse_ad(self, response):

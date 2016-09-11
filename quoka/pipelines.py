@@ -6,29 +6,15 @@
 # See: http://doc.scrapy.org/en/latest/topics/item-pipeline.html
 
 from datetime import date, timedelta
-import sqlite3 as sqlite
+from quoka_db import Quoka_DB, db_connect, create_table
+from sqlalchemy.orm import sessionmaker
 
 class QuokaPipeline(object):
 	def __init__(self):
 		"""initialise the database with all required fields"""
-		self.connection = sqlite.connect('./quoka_ads.db')
-		self.cursor = self.connection.cursor()
-		self.cursor.execute('CREATE TABLE IF NOT EXISTS quokascrapedata \
-                    (id INTEGER PRIMARY KEY,\
-					  Boersen_ID INTEGER, \
-					  OBID INTEGER, \
-					  erzeugt_am INTEGER, \
-					  Anbieter_Id VARCHAR(20), \
-					  Stadt VARCHAR(150), \
-					  PLZ VARCHAR(10), \
-					  Ueberschrift VARCHAR(500), \
-					  Beschreibung VARCHAR(15000), \
-					  Kaufpreis FLOAT, \
-					  Monat INTEGER, \
-					  url VARCHAR(1000), \
-					  Telefon VARCHAR(20), \
-					  Erstellungsdatum INTEGER, \
-					  Gewerblich INTEGER)')
+		engine = db_connect()
+		create_table(engine)
+		self.Session = sessionmaker(bind=engine)
 
 	def process_item(self, item, spider):
 		if item['Anbieter_ID'] == ' ':
@@ -75,13 +61,16 @@ class QuokaPipeline(object):
 		else:
 			item['erzeugt_am'] = int(date.today().strftime("%Y%m%d")) # date of the crawl -> today; format: yyyymmdd as integer
 		# NOW: insert the data into the database if it is not already there
-		self.cursor.execute("SELECT * FROM quokascrapedata WHERE OBID=? AND Ueberschrift=?", (item['OBID'],item['Ueberschrift'])) # get the entry (if it exists)
-		result = self.cursor.fetchone() # if the entry exists, then result == True
-		if not result:
-			self.cursor.execute("INSERT INTO quokascrapedata (Boersen_ID, OBID, erzeugt_am, Stadt, PLZ, Ueberschrift, \
-															  Beschreibung, Kaufpreis, Monat, url, Telefon, Erstellungsdatum, Gewerblich) \
-								 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (item['Boersen_ID'], item['OBID'], item['erzeugt_am'], item['Stadt'], item['PLZ'], item['Ueberschrift'], \
-					 item['Beschreibung'], item['Kaufpreis'], item['Monat'], item['url'], item['Telefon'], item['Erstellungsdatum'], item['Gewerblich']))
-			self.connection.commit()
+		session = self.Session()
+		dbentry = Quoka_DB(**item)
+
+		try:
+			session.add(dbentry)
+			session.commit()
+		except:
+			session.rollback()
+			raise
+		finally:
+			session.close()
+
 		return item
