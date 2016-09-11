@@ -99,7 +99,7 @@ class QuokaSpider(scrapy.Spider):
 		rs = json.loads(response._body)
 		for line in rs['result']:
 			I = QuokaItem()
-			# those fields we do not know set to default value
+			# those fields we do not know leave blank (will be None in the DB)
 			I['Boersen_ID'] = 1
 			I['Anbieter_ID'] = 'Immobilienscout'
 			I['Ueberschrift'] = line['title']
@@ -119,7 +119,7 @@ class QuokaSpider(scrapy.Spider):
 		I = QuokaItem()
 		I['Boersen_ID'] = 1
 		I['OBID'] = response.xpath('//div[@class="date-and-clicks"]/strong[1]/text()').extract()
-		I['Anbieter_ID'] = ' ' #immoscout-Anzeigen muessen gesondert gelesen werden!!!
+		I['Anbieter_ID'] = ' ' #only set for immoscout ads
 		I['Stadt'] = response.xpath('//a/span[@class="locality"]/text()').extract()
 		if I['Stadt'] == []: # s.t. there is no city given
 			I['Stadt'] = ['']
@@ -143,7 +143,7 @@ class QuokaSpider(scrapy.Spider):
 			request.meta['item'] = I
 			yield request
 		else:
-			I['Telefon'] = ['0']
+			I['Telefon'] = ['']
 			yield I
 
 	def parse_tel(self, response):
