@@ -1,4 +1,5 @@
 import scrapy
+import json
 from quoka.items import QuokaItem
 from scrapy.http import FormRequest
 
@@ -59,6 +60,11 @@ class QuokaSpider(scrapy.Spider):
 													callback=self.parse_overview_page2)
 				request.meta['comm'] = comm
 				yield request
+				# find the immoscout ads for this site
+				request = scrapy.Request('http://www.quoka.de/qs/qpc/xmlSearch.php?search=&view=quoka&platform=desktop&catid=27_2710&maxresults=20&page=' +str(pageno)+
+										'&output=json&oe=UTF-8', callback=self.parse_immoscout)
+				request.meta['comm'] = comm
+				yield request
 		else:
 			# in this case there is no "Seite 1 von n", so we simply scrape this page
 			request = scrapy.Request(response.url, callback=self.parse_overview_page2)
@@ -76,7 +82,6 @@ class QuokaSpider(scrapy.Spider):
 		comm = response.meta['comm'] # the private/commercial indicator
 		inserate_link = response.xpath('//div[@class="q-col n2"]/a[@href]') # some offers come directly with a link we can trace
 		inserate_js = response.xpath('//div[@class="q-col n2"]/a[@data-qng-prg]') # some offers need JavaScript (?) to be opened
-		inserate_immoscout = response.xpath('//li[@class="q-ln t1 partner"]') # the offers that are listed on immobilienscout24.de
 		for line in inserate_link:
 			url = response.urljoin(line.xpath('@href').extract()[0])
 			request = scrapy.Request(url, callback=self.parse_ad)
@@ -88,24 +93,28 @@ class QuokaSpider(scrapy.Spider):
 												callback=self.parse_ad)
 			request.meta['comm'] = comm
 			yield request
-		for line in inserate_immoscout:
+	
+	def parse_immoscout(self, response):
+		"""response is a JSON with the ads stored in the field result"""
+		rs = json.loads(response._body)
+		for line in rs['result']:
 			I = QuokaItem()
 			# those fields we do not know set to default value
 			I['Boersen_ID'] = 1
-			I['OBID'] = ['0']
+			I['OBID'] = 0
 			I['Anbieter_ID'] = 'Immobilienscout'
-			I['Stadt'] = ['']
-			I['PLZ'] = ['']
-			I['Ueberschrift'] = line.xpath('h3/text()').extract()
-			I['Beschreibung'] = ['']
-			I['Kaufpreis'] = line.xpath('div[@class="q-col n3"]/p/text()').extract()
+			I['Stadt'] = ''
+			I['PLZ'] = ''
+			I['Ueberschrift'] = line['title']
+			I['Beschreibung'] = line['description']
+			I['Kaufpreis'] = float(line['priceTotal'])
 			if I['Kaufpreis'] == []:
-				I['Kaufpreis'] = ['0']
+				I['Kaufpreis'] = 0
 			I['Monat'] = "September"
-			I['url'] = line.xpath('div[@class="q-col n2"]/a/@href').extract()
-			I['Erstellungsdatum'] = ['0']
-			I['Gewerblich'] = comm
-			I['Telefon'] = ['0']
+			I['url'] = line['urlClick']
+			I['Erstellungsdatum'] = 0
+			I['Gewerblich'] = response.meta['comm']
+			I['Telefon'] = '0'
 			yield I
 
 	def parse_ad(self, response):
