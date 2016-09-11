@@ -13,7 +13,7 @@ class QuokaSpider(scrapy.Spider):
 		"""
 		# iterate over the integers 0,1 (private, commercial)
 		for comm in xrange(2):
-			request = FormRequest.from_response(response, formdata={'classtype': 'of', 'comm': str(comm)}, callback=self.parse_comm)
+			request = FormRequest.from_response(response, formdata={'classtype': 'of', 'comm': str(comm)}, callback=self.parse_overview_page1)
 			request.meta['comm'] = comm # save the status (private/commercial) in the meta data to pass it to the next parse function
 			yield request
 
@@ -24,7 +24,7 @@ class QuokaSpider(scrapy.Spider):
 		comm = response.meta['comm'] # the private/commercial indicator
 		# iterate over the visible cities
 		for line in response.xpath('//div[@class="cnt"]'):
-			for ci in line.xpath('//ul/li/ul/li/a/@onclick').extract():
+			for ci in line.xpath('ul/li/ul/li/a/@onclick').extract():
 				cityid = ci.split("'")[1] # syntax: onclick="qsn.changeCity('cityid',25,this); return false;"
 				request = FormRequest.from_response(response, formdata={'classtype': 'of', 'comm': str(comm), 'cityid': cityid},
 													callback=self.parse_overview_page1)
@@ -33,7 +33,7 @@ class QuokaSpider(scrapy.Spider):
 				yield request
 		# iterate over the non-visible cities
 		for line in response.xpath('//div[@id="NAV_CONTENT_CITIES_MOREELEMENTS"]'):
-			for ci in line.xpath('//ul/li/ul/li/a/@onclick').extract():
+			for ci in line.xpath('ul/li/ul/li/a/@onclick').extract():
 				cityid = ci.split("'")[1] # syntax: onclick="qsn.changeCity('cityid',25,this); return false;"
 				request = FormRequest.from_response(response, formdata={'classtype': 'of', 'comm': str(comm), 'cityid': cityid},
 													callback=self.parse_overview_page1)
@@ -47,17 +47,19 @@ class QuokaSpider(scrapy.Spider):
 			does not read the ads, but calls for every of these pages the processing function
 		"""
 		comm = response.meta['comm'] # the private/commercial indicator
-		cityid = response.meta['cityid'] # the id of the city of which we look for the ads (as string)
+		#cityid = response.meta['cityid'] # the id of the city of which we look for the ads (as string)
 		# find the number of pages in total and open all other pages from 1,...,last page
-		try:
+		if len(response.xpath('//li[@class="pageno"]/a[@class="nothing"]/strong')) > 1:
 			numpages = int(response.xpath('//li[@class="pageno"]/a[@class="nothing"]/strong[2]/text()').extract()[0])
 			for pageno in xrange(1,numpages+1):
 				# we have to re-post our form for the filter settings
-				request = FormRequest.from_response(response, formdata={'classtype': 'of', 'comm': str(comm), 'pageno': str(pageno), 'cityid': cityid},
+				#request = FormRequest.from_response(response, formdata={'classtype': 'of', 'comm': str(comm), 'pageno': str(pageno), 'cityid': cityid},
+				#									callback=self.parse_overview_page2)
+				request = FormRequest.from_response(response, formdata={'classtype': 'of', 'comm': str(comm), 'pageno': str(pageno)},
 													callback=self.parse_overview_page2)
 				request.meta['comm'] = comm
 				yield request
-		except:
+		else:
 			# in this case there is no "Seite 1 von n", so we simply scrape this page
 			request = scrapy.Request(response.url, callback=self.parse_overview_page2)
 			request.meta['comm'] = comm
@@ -67,24 +69,44 @@ class QuokaSpider(scrapy.Spider):
 		"""parses the page with (20ish) availabe offers
 			for the specified case offers, private/commercially, city
 			this page contains the links to the detail pages
-			the spider follows these, unless they drive it away from quoka.de
+			the spider follows these, unless they drive it away from quoka.de, then the ad is processed right away
 			the spider also follows the "next page" link at the bottom of the page to crawl all offers
 			the processing of the detail pages is done in parse_ad.
 		"""
 		comm = response.meta['comm'] # the private/commercial indicator
 		inserate_link = response.xpath('//div[@class="q-col n2"]/a[@href]') # some offers come directly with a link we can trace
 		inserate_js = response.xpath('//div[@class="q-col n2"]/a[@data-qng-prg]') # some offers need JavaScript (?) to be opened
+		inserate_immoscout = response.xpath('//li[@class="q-ln t1 partner"]') # the offers that are listed on immobilienscout24.de
 		for line in inserate_link:
 			url = response.urljoin(line.xpath('@href').extract()[0])
 			request = scrapy.Request(url, callback=self.parse_ad)
 			request.meta['comm'] = comm
 			yield request
 		for line in inserate_js:
-			adno = line.xpath('//a/@data-qng-prg').extract()[0].split('|')[0] # the id of the ad (as string)
+			adno = line.xpath('@data-qng-prg').extract()[0].split('|')[0] # the id of the ad (as string)
 			request = FormRequest.from_response(response, formdata={'classtype': 'of', 'comm': str(comm), 'prg_adno': adno},
 												callback=self.parse_ad)
 			request.meta['comm'] = comm
 			yield request
+		for line in inserate_immoscout:
+			I = QuokaItem()
+			# those fields we do not know set to default value
+			I['Boersen_ID'] = 1
+			I['OBID'] = ['0']
+			I['Anbieter_ID'] = 'Immobilienscout'
+			I['Stadt'] = ['']
+			I['PLZ'] = ['']
+			I['Ueberschrift'] = line.xpath('h3/text()').extract()
+			I['Beschreibung'] = ['']
+			I['Kaufpreis'] = line.xpath('div[@class="q-col n3"]/p/text()').extract()
+			if I['Kaufpreis'] == []:
+				I['Kaufpreis'] = ['0']
+			I['Monat'] = "September"
+			I['url'] = line.xpath('div[@class="q-col n2"]/a/@href').extract()
+			I['Erstellungsdatum'] = ['0']
+			I['Gewerblich'] = comm
+			I['Telefon'] = ['0']
+			yield I
 
 	def parse_ad(self, response):
 		"""parses the detail pages of every offer
