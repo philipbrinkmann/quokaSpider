@@ -90,6 +90,7 @@ ITEM_PIPELINES = {
 #HTTPCACHE_IGNORE_HTTP_CODES = []
 #HTTPCACHE_STORAGE = 'scrapy.extensions.httpcache.FilesystemCacheStorage'
 #DUPEFILTER_CLASS = 'scrapy_splash.SplashAwareDupeFilter'
+DUPEFILTER_CLASS = 'scrapy.dupefilters.BaseDupeFilter'
 #HTTPCACHE_STORAGE = 'scrapy_splash.SplashAwareFSCacheStorage'
 
 LOG_LEVEL = 'INFO'
