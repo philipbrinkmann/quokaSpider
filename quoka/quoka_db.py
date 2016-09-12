@@ -8,7 +8,7 @@ def db_connect():
 	Performs database connection.
 	Returns sqlalchemy engine instance
 	"""
-	engine = create_engine('sqlite:////home/philip/bitbucked/quoka/quoka_ads.db')
+	engine = create_engine('sqlite:///./quoka_ads.db')
 	return engine
 
 def create_table(engine):

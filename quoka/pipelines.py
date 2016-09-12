@@ -8,6 +8,7 @@
 from datetime import date, timedelta
 from quoka_db import Quoka_DB, db_connect, create_table
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy import and_
 
 class QuokaPipeline(object):
 	def __init__(self):
@@ -59,18 +60,22 @@ class QuokaPipeline(object):
 						item['Erstellungsdatum'] =  int(d[2]+d[1]+d[0])
 					break
 		else:
+			item['OBID'] = 0 # set some value so we can use it as a filter to figure out duplicates in the db
 			item['erzeugt_am'] = int(date.today().strftime("%Y%m%d")) # date of the crawl -> today; format: yyyymmdd as integer
 		# NOW: insert the data into the database if it is not already there
 		session = self.Session()
-		dbentry = Quoka_DB(**item)
+		if session.query(Quoka_DB).filter(and_(Quoka_DB.OBID == item['OBID'], Quoka_DB.Ueberschrift == item['Ueberschrift'])).all() == []:
+																													# the quoka ads are identified by OBID,
+																													# the immoscout ads not, therefore we use the title
+			dbentry = Quoka_DB(**item)
 
-		try:
-			session.add(dbentry)
-			session.commit()
-		except:
-			session.rollback()
-			raise
-		finally:
-			session.close()
+			try:
+				session.add(dbentry)
+				session.commit()
+			except:
+				session.rollback()
+				raise
+
+		session.close()
 
 		return item
